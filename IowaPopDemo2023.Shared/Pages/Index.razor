@@ -1,0 +1,135 @@
+﻿@page "/"
+
+<h1>Iowa County Population Change</h1>
+<h2>2010-2019</h2>
+<label>
+    Search by County Name: <input type="text" @bind="searchText" />
+    <button @onclick="() => searchText = string.Empty">Clear</button>
+</label>
+<br />
+<label>
+    Sort By Column:
+    <InputSelect @bind-Value="sortColumn">
+        <option value="County">County</option>
+        <option value="Pop2010">2010</option>
+        <option value="Pop2011">2011</option>
+        <option value="Pop2012">2012</option>
+        <option value="Pop2013">2013</option>
+        <option value="Pop2014">2014</option>
+        <option value="Pop2015">2015</option>
+        <option value="Pop2016">2016</option>
+        <option value="Pop2017">2017</option>
+        <option value="Pop2018">2018</option>
+        <option value="Pop2019">2019</option>
+        <option value="PopulationChange">Population Change</option>
+    </InputSelect>
+    <InputRadioGroup @bind-Value="sortDirection" Name="Direction">
+        <InputRadio Name="Direction" Value="@("Ascending")" />Ascending
+        <InputRadio Name="Direction" Value="@("Descending")" />Descending
+    </InputRadioGroup>
+    <button @onclick="SortRows">Sort</button>
+</label>
+<table>
+    <thead>
+        <tr>
+            <th>County</th>
+            @for(int i = 2010; i < 2020; i++)
+            {
+                <th>@i</th>
+            }
+            <th>Population Change</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var countyRow in filteredRows)
+        {
+
+            <tr>
+                <td>@countyRow.County</td>
+                <td>@countyRow.Pop2010.ToString("N0")</td>
+                <td>@countyRow.Pop2011.ToString("N0")</td>
+                <td>@countyRow.Pop2012.ToString("N0")</td>
+                <td>@countyRow.Pop2013.ToString("N0")</td>
+                <td>@countyRow.Pop2014.ToString("N0")</td>
+                <td>@countyRow.Pop2015.ToString("N0")</td>
+                <td>@countyRow.Pop2016.ToString("N0")</td>
+                <td>@countyRow.Pop2017.ToString("N0")</td>
+                <td>@countyRow.Pop2018.ToString("N0")</td>
+                <td>@countyRow.Pop2019.ToString("N0")</td>
+                <td style="font-weight: bold; @(countyRow.PopulationChange >= 0 ? "" : "color:red")">
+                    @countyRow.PopulationChange.ToString("N0")
+                </td>
+
+            </tr>
+        }
+        <tr>
+            <td>State of Iowa</td>
+            <td>@countyRows.Sum(r => r.Pop2010).ToString("N0")</td>
+            <td>@countyRows.Sum(r => r.Pop2011).ToString("N0")</td>
+            <td>@countyRows.Sum(r => r.Pop2012).ToString("N0")</td>
+            <td>@countyRows.Sum(r => r.Pop2013).ToString("N0")</td>
+            <td>@countyRows.Sum(r => r.Pop2014).ToString("N0")</td>
+            <td>@countyRows.Sum(r => r.Pop2015).ToString("N0")</td>
+            <td>@countyRows.Sum(r => r.Pop2016).ToString("N0")</td>
+            <td>@countyRows.Sum(r => r.Pop2017).ToString("N0")</td>
+            <td>@countyRows.Sum(r => r.Pop2018).ToString("N0")</td>
+            <td>@countyRows.Sum(r => r.Pop2019).ToString("N0")</td>
+            <td style="font-weight: bold; @(countyRows.Sum(r => r.PopulationChange) >= 0 ? "" : "color:red")">
+                @countyRows.Sum(r => r.PopulationChange).ToString("N0")
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+@code {
+    [Inject]
+    public HttpClient HttpClient { get; set; } = default!;
+
+    private List<CountyYearPopulation> countyRows = new List<CountyYearPopulation>();
+    private string searchText = string.Empty;
+    private List<CountyYearPopulation> filteredRows => string.IsNullOrWhiteSpace(searchText) 
+        ? countyRows 
+        : countyRows.Where(r => r.County.Contains(searchText, StringComparison.OrdinalIgnoreCase)).ToList();
+    private string sortColumn = "County";
+    private string sortDirection = "Ascending";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var response = await HttpClient.GetAsync("https://api.census.gov/data/2019/pep/population?get=NAME,DATE_CODE,POP&for=county:*&in=state:19");
+        var content = await response.Content.ReadAsStringAsync();
+        var rows = JsonSerializer.Deserialize<List<string[]>>(content)!;
+        rows.RemoveAt(0); // Remove header row
+        var counties = rows.Select(r => r[0].Replace(", Iowa", "")).Distinct().Order().ToList();
+        foreach (string county in counties)
+        {
+            var popDiff = int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "12")[2]) -
+                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "1")[2]);
+            countyRows.Add(new CountyYearPopulation(county, 
+                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "3")[2]),
+                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "4")[2]),
+                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "5")[2]),
+                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "6")[2]),
+                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "7")[2]),
+                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "8")[2]),
+                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "9")[2]),
+                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "10")[2]),
+                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "11")[2]),
+                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "12")[2]),
+                popDiff));
+        }
+    }
+
+    private void SortRows() 
+    {
+        if (sortDirection == "Ascending")
+        {
+            countyRows = countyRows.OrderBy(r => r.GetType().GetProperty(sortColumn)?.GetValue(r, null)).ToList();
+        }
+        else
+        {
+            countyRows = countyRows.OrderByDescending(r => r.GetType().GetProperty(sortColumn)?.GetValue(r, null)).ToList();
+        }
+    }
+
+    record CountyYearPopulation(string County, int Pop2010, int Pop2011, int Pop2012, int Pop2013, int Pop2014, int Pop2015, int Pop2016, int Pop2017, int Pop2018, int Pop2019, int PopulationChange);
+}
