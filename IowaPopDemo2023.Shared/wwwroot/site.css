@@ -1,10 +1,46 @@
+main {
+    margin: 1rem;
+}
+
+.header-section {
+    display: flex;
+    flex-direction: row;
+    margin: 1rem 0;
+}
+
+.header-column {
+    display: flex;
+    flex-direction: column;
+    margin: 0 1rem;
+    justify-content: center;
+    width: 100%;
+}
+
+.header-column-right {
+    align-items: flex-end;
+}
+
+.panel {
+    border: 1px solid black;
+    padding: 1rem;
+    margin: 0.5rem;
+    display: flex;
+    flex-direction: column;
+}
+
 table {
+    margin: 1rem;
     border-collapse: collapse;
     width: 100%;
     max-width: 800px;
     margin: 0 auto;
     font-family: Arial, sans-serif;
     font-size: 14px;
+    cursor: pointer;
+}
+
+tr:hover {
+    background-color: lightgray;
 }
 
 th, td {
@@ -17,6 +53,12 @@ th {
     background-color: #f2f2f2;
     font-weight: bold;
     color: #333;
+}
+
+@media (max-width: 1000px) {
+    .header-section {
+        flex-direction: column;
+    }
 }
 
 #blazor-error-ui {
