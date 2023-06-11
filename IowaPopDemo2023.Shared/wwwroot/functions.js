@@ -1,7 +1,7 @@
 let chart;
 
 export function getWindowWidth() {
-  return document.body.clientWidth;
+  return window.innerWidth;
 }
 
 export function createChart(chartData, chartLabel, labels, canvasElement) {
