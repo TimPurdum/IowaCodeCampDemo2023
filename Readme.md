@@ -8,6 +8,8 @@ tim.purdum@dymaptic.com
 
 https://timpurdum.dev
 
+https://dymaptic.com
+
 <br/>
 
 ## Create Server App
@@ -20,8 +22,6 @@ dotnet sln add Server/Server.csproj
 cd Server
 dotnet run -lp https
 ```
-
-
 
 ### Server `_Host.cshtml`
 
@@ -52,34 +52,25 @@ builder.Services.AddHttpClient();
 
     protected override async Task OnInitializedAsync()
     {
-        var response = await HttpClient.GetAsync("https://api.census.gov/data/2019/pep/population?get=NAME,DATE_CODE,POP&for=county:*&in=state:19");
-        var content = await response.Content.ReadAsStringAsync();
-        var rows = JsonSerializer.Deserialize<List<string[]>>(content)!;
-        rows.RemoveAt(0); // Remove header row
-        var counties = rows.Select(r => r[0].Replace(", Iowa", "")).Distinct().Order().ToList();
+        var response = await HttpClient.GetAsync(
+            "https://api.census.gov/data/2019/pep/population?get=NAME,DATE_CODE,POP&for=county:*&in=state:19");
+        var rows = await response.Content.ReadFromJsonAsync<List<string[]>>();
+        rows = rows.Skip(1).ToList();
+        var counties = rows.Select(r => r[0])
+            .Distinct().OrderBy(c => c).ToList();
         foreach (string county in counties)
         {
-            var popDiff = int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "12")[2]) -
-                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "1")[2]);
-            countyRows.Add(new CountyYearPopulation(county, 
-                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "3")[2]),
-                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "4")[2]),
-                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "5")[2]),
-                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "6")[2]),
-                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "7")[2]),
-                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "8")[2]),
-                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "9")[2]),
-                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "10")[2]),
-                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "11")[2]),
-                int.Parse(rows.First(r => r[0].Contains(county) && r[1] == "12")[2]),
-                popDiff));
+            var populationDiff = int.Parse(rows.First(r => r[0] == county && r[1] == "12").Last()) -
+                int.Parse(rows.First(r => r[0] == county && r[1] == "1").Last());
+            countyRows.Add(new CountyYearPopulation(county,
+                rows.Where(r => r[0] == county && int.Parse(r[1]) > 2).Select(r => int.Parse(r[2])).ToArray(),
+                populationDiff));
         }
     }
-    
+
     private List<CountyYearPopulation> countyRows = new List<CountyYearPopulation>();
-    record CountyYearPopulation(string County, int Pop2010, int Pop2011, int Pop2012, int Pop2013, int Pop2014, int Pop2015, int Pop2016, int Pop2017, int Pop2018, int Pop2019, int PopulationChange)
-    {
-    	public int[] ToDataSet => new int[] { Pop2010, Pop2011, Pop2012, Pop2013, Pop2014, Pop2015, Pop2016, Pop2017, Pop2018, Pop2019 };
+
+    record CountyYearPopulation(string County, int[] DataSet, int PopulationChange);
     }
 }
 ```
@@ -103,21 +94,12 @@ builder.Services.AddHttpClient();
         @foreach (var countyRow in countyRows)
         {
             <tr>
-                <td>@countyRow.County</td>
-                <td>@countyRow.Pop2010.ToString("N0")</td>
-                <td>@countyRow.Pop2011.ToString("N0")</td>
-                <td>@countyRow.Pop2012.ToString("N0")</td>
-                <td>@countyRow.Pop2013.ToString("N0")</td>
-                <td>@countyRow.Pop2014.ToString("N0")</td>
-                <td>@countyRow.Pop2015.ToString("N0")</td>
-                <td>@countyRow.Pop2016.ToString("N0")</td>
-                <td>@countyRow.Pop2017.ToString("N0")</td>
-                <td>@countyRow.Pop2018.ToString("N0")</td>
-                <td>@countyRow.Pop2019.ToString("N0")</td>
-                <td style="font-weight: bold; @(countyRow.PopulationChange >= 0 ? "color: green" : "color:red")">
-                    @countyRow.PopulationChange.ToString("N0")
-                </td>
-
+                <td>@countyRow.County.Replace(" County, Iowa", "")</td>
+                @foreach (var pop in countyRow.DataSet)
+                {
+                    <td>@pop</td>
+                }
+                <td>@countyRow.PopulationChange</td>
             </tr>
         }
     </tbody>
@@ -175,17 +157,8 @@ th {
 
 ```csharp
     private CountyYearPopulation stateRow => new CountyYearPopulation("State of Iowa",
-        countyRows.Sum(r => r.Pop2010),
-        countyRows.Sum(r => r.Pop2011),
-        countyRows.Sum(r => r.Pop2012),
-        countyRows.Sum(r => r.Pop2013),
-        countyRows.Sum(r => r.Pop2014),
-        countyRows.Sum(r => r.Pop2015),
-        countyRows.Sum(r => r.Pop2016),
-        countyRows.Sum(r => r.Pop2017),
-        countyRows.Sum(r => r.Pop2018),
-        countyRows.Sum(r => r.Pop2019),
-        countyRows.Sum(r => r.PopulationChange));
+        Enumerable.Range(0, 10).Select(i => countyRows.Sum(c => c.DataSet[i])).ToArray(),
+        countyRows.Sum(c => c.PopulationChange));
 ```
 
 ### Add Search Field
@@ -227,20 +200,13 @@ th {
 ```html
 		<br />
         <label>
-            Sort By Column:
+            Sort by Column:
             <InputSelect @bind-Value="sortColumn">
-                <option value="County">County</option>
-                <option value="Pop2010">2010</option>
-                <option value="Pop2011">2011</option>
-                <option value="Pop2012">2012</option>
-                <option value="Pop2013">2013</option>
-                <option value="Pop2014">2014</option>
-                <option value="Pop2015">2015</option>
-                <option value="Pop2016">2016</option>
-                <option value="Pop2017">2017</option>
-                <option value="Pop2018">2018</option>
-                <option value="Pop2019">2019</option>
-                <option value="PopulationChange">Population Change</option>
+                @for (int i = 0; i < 10; i++)
+                {
+                    <option value="@i">@(i + 2010)</option>
+                }
+                <option value="PopChange">Population Change</option>
             </InputSelect>
             <InputRadioGroup @bind-Value="sortDirection" Name="Direction">
                 <InputRadio Name="Direction" Value="@("Ascending")" />Ascending
@@ -251,15 +217,31 @@ th {
 ```
 
 ```csharp
-    private void SortRows() 
+    private void SortRows()
     {
         if (sortDirection == "Ascending")
         {
-            countyRows = countyRows.OrderBy(r => r.GetType().GetProperty(sortColumn)?.GetValue(r, null)).ToList();
+            if (sortColumn == "PopChange")
+            {
+                countyRows = countyRows.OrderBy(r => r.PopulationChange).ToList();
+            }
+            else
+            {
+                countyRows = countyRows.OrderBy(r => 
+                    r.DataSet[int.Parse(sortColumn)]).ToList();
+            }
         }
         else
         {
-            countyRows = countyRows.OrderByDescending(r => r.GetType().GetProperty(sortColumn)?.GetValue(r, null)).ToList();
+            if (sortColumn == "PopChange")
+            {
+                countyRows = countyRows.OrderByDescending(r => r.PopulationChange).ToList();
+            }
+            else
+            {
+                countyRows = countyRows.OrderByDescending(r => 
+                    r.DataSet[int.Parse(sortColumn)]).ToList();
+            }
         }
     }
 
@@ -293,9 +275,10 @@ export function getWindowWidth() {
     {
         if (firstRender)
         {
-            functionsModule = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "functions.js");
-            windowWidth = await functionsModule.InvokeAsync<int>("getWindowWidth");
+            functionsModule = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./functions.js");
         }
+        
+        windowWidth = await functionsModule.InvokeAsync<int>("getWindowWidth");
     }
 
 	private IJSObjectReference? functionsModule;
@@ -313,20 +296,17 @@ else
 {
 	foreach (var countyRow in filteredRows)
     {
-        <div class="panel">
-            <label><b>@countyRow.County</b></label>
-            <label><b>2010: </b>@countyRow.Pop2010.ToString("N0")</label>
-            <label><b>2011: </b>@countyRow.Pop2011.ToString("N0")</label>
-            <label><b>2012: </b>@countyRow.Pop2012.ToString("N0")</label>
-            <label><b>2013: </b>@countyRow.Pop2013.ToString("N0")</label>
-            <label><b>2014: </b>@countyRow.Pop2014.ToString("N0")</label>
-            <label><b>2015: </b>@countyRow.Pop2015.ToString("N0")</label>
-            <label><b>2016: </b>@countyRow.Pop2016.ToString("N0")</label>
-            <label><b>2017: </b>@countyRow.Pop2017.ToString("N0")</label>
-            <label><b>2018: </b>@countyRow.Pop2018.ToString("N0")</label>
-            <label><b>2019: </b>@countyRow.Pop2019.ToString("N0")</label>
-            <label style="font-weight: bold; @(countyRow.PopulationChange >= 0 ? "color: green" : "color:red")">
-                <b>Population Change: </b>@countyRow.PopulationChange.ToString("N0")</label>
+        <div class="panel" @onclick="@(() => RowClicked(countyRow))">
+            <label><b>@countyRow.County.Replace(" County, Iowa", "")</b></label>
+            @for (int i = 0; i < 10; i++)
+            {
+                <label><b>@(i + 2010):</b> @countyRow.DataSet[i].ToString("N0")</label>
+            }
+            <div class="panel-column">
+                <label style="font-weight: bold; @(countyRow.PopulationChange >= 0 ? "color: green" : "color:red")">
+                    <b>Population Change:</b> @countyRow.PopulationChange.ToString("N0")
+                </label>
+            </div>
         </div>
     }
 }
@@ -439,7 +419,7 @@ function generateColors(chartData) {
 ```csharp
  	private async Task RowClicked(CountyYearPopulation countyRow)
     {
-        await functionsModule!.InvokeVoidAsync("createChart", countyRow.ToDataSet, $"{countyRow.County} Population 2010-2019", 
+        await functionsModule!.InvokeVoidAsync("createChart", countyRow.DataSet, $"{countyRow.County} Population 2010-2019", 
             columnNames, chartCanvas);
     }
 
@@ -477,6 +457,7 @@ dotnet sln add Shared/Shared.csproj
 @using Shared
 @using Shared.Pages
 @using System.Text.Json
+@using System.Net.Http.Json
 ```
 
 ### Delete from Shared
@@ -524,6 +505,13 @@ AdditionalAssemblies="@(new [] {typeof(MainLayout).Assembly})"
 
 ```csharp
 functionsModule = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./_content/Shared/functions.js");
+```
+
+## Create WASM Project
+
+```bash
+dotnet list
+dotnet new blazorwasm-empty -o Wasm
 ```
 
 ### Delete from Wasm
@@ -584,7 +572,6 @@ dotnet add reference ..\Shared\Shared.csproj
 #### `wwwroot/index.html`
 
 ```html
-    <meta name="viewport" content="width=device-width">
     <link href="_content/Shared/css/site.css" rel="stylesheet" />
     <link href="_content/Shared/" />
 ...
@@ -605,7 +592,7 @@ dotnet add reference ..\Shared\Shared.csproj
 AdditionalAssemblies="@(new [] {typeof(MainLayout).Assembly})"
 ```
 
-#### `Program.cs`
+#### `MauiProgram.cs`
 
 ```csharp
 builder.Services.AddScoped(_ => new HttpClient());

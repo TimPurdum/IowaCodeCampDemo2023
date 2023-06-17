@@ -1,0 +1,169 @@
+﻿@page "/"
+
+<h1>Iowa County Population Change</h1>
+<h2>2010-2019</h2>
+
+<div class="header-section">
+    <div class="header-column">
+        <label>
+            Search by County Name: <input type="text" @bind="searchText" />
+            <button @onclick="() => searchText = string.Empty">Clear</button>
+        </label>
+        <br />
+        <label>
+            Sort by Column:
+            <InputSelect @bind-Value="sortColumn">
+                @for (int i = 0; i < 10; i++)
+                {
+                    <option value="@i">@(i + 2010)</option>
+                }
+                <option value="PopChange">Population Change</option>
+            </InputSelect>
+            <InputRadioGroup @bind-Value="sortDirection" Name="Direction">
+                <InputRadio Name="Direction" Value="@("Ascending")" />Ascending
+                <InputRadio Name="Direction" Value="@("Descending")" />Descending
+            </InputRadioGroup>
+            <button @onclick="SortRows">Sort</button>
+        </label>
+    </div>
+    <div class="header-column header-column-right">
+        <canvas id="chartCanvas" @ref="chartCanvas" height="200"></canvas>
+    </div>
+</div>
+@if (windowWidth > 800) 
+{
+    <table>
+        <thead>
+            <tr>
+                <th>County</th>
+                @for (int i = 2010; i < 2020; i++)
+                {
+                    <th>@i</th>
+                }
+                <th>Population Change</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var countyRow in filteredRows)
+            {
+                <tr @onclick="@(() => RowClicked(countyRow))">
+                    <td>@countyRow.County.Replace(" County, Iowa", "")</td>
+                    @foreach (var pop in countyRow.DataSet)
+                    {
+                        <td>@pop.ToString("N0")</td>
+                    }
+                    <td>@countyRow.PopulationChange</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    foreach (var countyRow in filteredRows)
+    {
+        <div class="panel" @onclick="@(() => RowClicked(countyRow))">
+            <label><b>@countyRow.County.Replace(" County, Iowa", "")</b></label>
+            @for (int i = 0; i < 10; i++)
+            {
+                <label><b>@(i + 2010):</b> @countyRow.DataSet[i].ToString("N0")</label>
+            }
+            <div class="panel-column">
+                <label style="font-weight: bold; @(countyRow.PopulationChange >= 0 ? "color: green" : "color:red")">
+                    <b>Population Change:</b> @countyRow.PopulationChange.ToString("N0")
+                </label>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Inject]
+    public HttpClient HttpClient { get; set; } = default!;
+
+    [Inject]
+    public IJSRuntime JSRuntime { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var response = await HttpClient.GetAsync(
+        "https://api.census.gov/data/2019/pep/population?get=NAME,DATE_CODE,POP&for=county:*&in=state:19");
+        var rows = await response.Content.ReadFromJsonAsync<List<string[]>>();
+        rows = rows.Skip(1).ToList();
+        var counties = rows.Select(r => r[0])
+        .Distinct().OrderBy(c => c).ToList();
+        foreach (string county in counties)
+        {
+            var populationDiff = int.Parse(rows.First(r => r[0] == county && r[1] == "12")[2]) -
+            int.Parse(rows.First(r => r[0] == county && r[1] == "1")[2]);
+            countyRows.Add(new CountyYearPopulation(county,
+            rows.Where(r => r[0] == county && int.Parse(r[1]) > 2).Select(r => int.Parse(r[2])).ToArray(),
+            populationDiff));
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            functionsModule = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./_content/Shared/functions.js");
+        }
+
+        windowWidth = await functionsModule!.InvokeAsync<int>("getWindowWidth");
+    }
+
+    private void SortRows()
+    {
+        if (sortDirection == "Ascending")
+        {
+            if (sortColumn == "PopChange")
+            {
+                countyRows = countyRows.OrderBy(r => r.PopulationChange).ToList();
+            }
+            else
+            {
+                countyRows = countyRows.OrderBy(r => 
+                    r.DataSet[int.Parse(sortColumn)]).ToList();
+            }
+        }
+        else
+        {
+            if (sortColumn == "PopChange")
+            {
+                countyRows = countyRows.OrderByDescending(r => r.PopulationChange).ToList();
+            }
+            else
+            {
+                countyRows = countyRows.OrderByDescending(r => 
+                    r.DataSet[int.Parse(sortColumn)]).ToList();
+            }
+        }
+    }
+
+    private async Task RowClicked(CountyYearPopulation countyRow)
+    {
+        await functionsModule!.InvokeVoidAsync("createChart", countyRow.DataSet, $"{countyRow.County} Population 2010-2019", 
+            columnNames, chartCanvas);
+    }
+
+    private string[] columnNames = new string[] { "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019" };
+	private ElementReference chartCanvas;
+
+    private string sortColumn = "County"; 
+    private string sortDirection = "Ascending";
+
+    private CountyYearPopulation stateRow => new CountyYearPopulation("State of Iowa",
+    Enumerable.Range(0, 10).Select(i => countyRows.Sum(c => c.DataSet[i])).ToArray(),
+    countyRows.Sum(c => c.PopulationChange));
+    private List<CountyYearPopulation> filteredRows => string.IsNullOrWhiteSpace(searchText)
+    ? countyRows.Concat(new[] { stateRow }).ToList()
+    : countyRows.Where(r => r.County.Contains(searchText, StringComparison.OrdinalIgnoreCase)).ToList()
+    .Concat(new[] { stateRow }).ToList();
+
+    private string searchText = string.Empty;
+    private IJSObjectReference? functionsModule;
+    private int windowWidth;
+
+    private List<CountyYearPopulation> countyRows = new List<CountyYearPopulation>();
+    record CountyYearPopulation(string County, int[] DataSet, int PopulationChange);
+}
