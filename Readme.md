@@ -10,6 +10,8 @@ https://timpurdum.dev
 
 https://dymaptic.com
 
+Try [GeoBlazor](https://geoblazor.com) for powerful cross-platform maps!
+
 <br/>
 
 ## Create Server App
