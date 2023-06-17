@@ -115,10 +115,32 @@ main {
     margin: 1rem;
 }
 
+.header-section {
+    display: flex;
+    flex-direction: row;
+    margin: 1rem 0;
+    height: 240px;
+}
+
+.header-column {
+    display: flex;
+    flex-direction: column;
+    margin: 0 1rem;
+    justify-content: center;
+    width: 100%;
+}
+
+.header-column-right {
+    align-items: flex-end;
+}
+
 table {
-    margin: 1rem;
     border-collapse: collapse;
     width: 100%;
+    background-color: #fff;
+    color: #212529;
+    border: 1px solid #dee2e6;
+    margin: 1rem;
     max-width: 800px;
     margin: 0 auto;
     font-family: Arial, sans-serif;
@@ -133,10 +155,11 @@ tr:hover {
     background-color: lightgray;
 }
 
-th, td {
-    padding: 8px;
-    text-align: left;
-    border-bottom: 1px solid #ddd;
+th,
+td {
+    padding: 0.75rem;
+    vertical-align: top;
+    border-top: 1px solid #dee2e6;
 }
 
 thead {
@@ -146,10 +169,49 @@ thead {
 }
 
 th {
-    background-color: #f2f2f2;
-    font-weight: bold;
-    color: #333;
     width: 10%;
+    background-color: #f8f9fa;
+    font-weight: bold;
+    text-align: inherit;
+    border-bottom: 2px solid #dee2e6;
+}
+
+td {
+    border-bottom: 1px solid #dee2e6;
+}
+
+tbody tr:nth-of-type(even) {
+    background-color: #f2f2f2;
+}
+
+tbody tr:hover {
+    background-color: #e9ecef;
+}
+
+.panel {
+    border: 1px solid black;
+    padding: 1rem;
+    margin: 0.5rem;
+    display: flex;
+    flex-direction: column;
+}
+
+@media (max-width: 1000px) {
+    .header-section {
+        flex-direction: column;
+        height: 400px;
+        max-width: 90vw;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .header-column {
+        height: 200px;
+    }
+
+    .header-column-right {
+        align-items: center;
+    }
 }
 ```
 
@@ -253,12 +315,6 @@ th {
 
 ### Add JavaScript to GetWidth
 
-#### `_Host.cshtml`
-
-```html
-	<meta name="viewport" content="width=device-width">
-```
-
 #### `functions.js`
 
 ```js
@@ -314,54 +370,12 @@ else
 }
 ```
 
-#### `site.css`
-
-```css
-.panel {
-    border: 1px solid black;
-    padding: 1rem;
-    margin: 0.5rem;
-    display: flex;
-    flex-direction: column;
-}
-
-@media (max-width: 1000px) {
-    .header-section {
-        flex-direction: column;
-        height: 400px;
-    }
-}
-```
-
 ### Add Chart JS
 
 #### `_Host.cshtml`
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-```
-
-#### `site.css`
-
-```css
-.header-section {
-    display: flex;
-    flex-direction: row;
-    margin: 1rem 0;
-    height: 240px;
-}
-
-.header-column {
-    display: flex;
-    flex-direction: column;
-    margin: 0 1rem;
-    justify-content: center;
-    width: 100%;
-}
-
-.header-column-right {
-    align-items: flex-end;
-}
 ```
 
 #### `functions.js`
@@ -564,6 +578,7 @@ dotnet sln add Maui/Maui.csproj
 - `Shared` folder
 - `Pages` folder
 - `Data` folder
+- `wwwroot/css` folder
 
 ### Add to Maui
 

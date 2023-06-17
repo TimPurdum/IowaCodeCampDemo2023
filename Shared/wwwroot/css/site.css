@@ -87,6 +87,17 @@ tbody tr:hover {
     .header-section {
         flex-direction: column;
         height: 400px;
+        max-width: 90vw;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .header-column {
+        height: 200px;
+    }
+
+    .header-column-right {
+        align-items: center;
     }
 }
 
